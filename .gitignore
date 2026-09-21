@@ -10,3 +10,7 @@ EOF
 
 # Generated figures
 figure.png
+
+# Python cache
+__pycache__/
+*.pyc
