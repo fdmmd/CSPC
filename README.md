@@ -78,3 +78,9 @@ recovered the original position to within about a metre. Integration is a
 low-pass operation: random noise partly cancels out, the opposite of
 differentiation. The recovered position is smooth and matches the measured
 data, showing that integration cleans up the noise.
+
+**Bonus — 2D trajectory:**
+Read `trajectory.csv` (time, x, y), plotted the path (x vs y), and computed
+the speed |v| = √(vx² + vy²) using `np.gradient` on each coordinate. The speed
+vs time plot is noisy, again showing that numerical differentiation amplifies
+measurement noise.
