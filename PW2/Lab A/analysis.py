@@ -57,7 +57,6 @@ fig.suptitle("Free fall: position, velocity, acceleration")
 fig.tight_layout()
 fig.savefig("motion.png", dpi=150)
 print("Saved motion.png")
-print(f"Mean acceleration: {a.mean():.3f} m/s²")
 print("  (noisy — numerical differentiation amplifies measurement noise)")
 # ============================================================
 # BONUS: 2D tracked trajectory
