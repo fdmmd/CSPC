@@ -28,6 +28,9 @@ print(f"Mean acceleration: {a.mean():.3f} m/s²")
 #         (hint: cumulative_trapezoid(a, t, initial=0) + v[0], then again)
 v_rec = cumulative_trapezoid(a, t, initial=0) + v[0]
 y_rec = cumulative_trapezoid(v_rec, t, initial=0) + y[0]
+diff = np.abs(y_rec - y)
+print(f"Max |y_rec - y| = {diff.max():.3f} m")
+print(f"Mean |y_rec - y| = {diff.mean():.3f} m")
 
 # TODO 4: make a figure with 3 stacked panels: position, velocity, acceleration
 #         vs time. Mark the true -9.81 line on the acceleration panel.
