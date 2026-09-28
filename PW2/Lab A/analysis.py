@@ -59,3 +59,40 @@ fig.savefig("motion.png", dpi=150)
 print("Saved motion.png")
 print(f"Mean acceleration: {a.mean():.3f} m/s²")
 print("  (noisy — numerical differentiation amplifies measurement noise)")
+# ============================================================
+# BONUS: 2D tracked trajectory
+# ============================================================
+
+# Read trajectory.csv
+t2, x, y2 = np.loadtxt("trajectory.csv", delimiter=",", skiprows=1, unpack=True)
+
+# Velocities in each direction
+vx = np.gradient(x, t2)
+vy = np.gradient(y2, t2)
+
+# Speed: magnitude of the velocity vector
+speed = np.sqrt(vx**2 + vy**2)
+
+# Figure: path (left) + speed vs time (right)
+fig2, (ax_path, ax_speed) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Path
+ax_path.plot(x, y2, "-", color="C0")
+ax_path.set_xlabel("x (m)")
+ax_path.set_ylabel("y (m)")
+ax_path.set_title("Tracked path (x vs y)")
+ax_path.set_aspect("equal")
+ax_path.grid(True, alpha=0.3)
+
+# Speed vs time
+ax_speed.plot(t2, speed, color="C1")
+ax_speed.set_xlabel("time t (s)")
+ax_speed.set_ylabel("speed |v| (m/s)")
+ax_speed.set_title("Speed vs time")
+ax_speed.grid(True, alpha=0.3)
+
+fig2.suptitle("2D trajectory analysis")
+fig2.tight_layout()
+fig2.savefig("trajectory.png", dpi=150)
+print("Saved trajectory.png")
+print(f"Mean speed: {speed.mean():.3f} m/s")
