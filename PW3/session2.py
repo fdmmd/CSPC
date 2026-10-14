@@ -73,3 +73,49 @@ ax.grid(True, alpha=0.3)
 fig.tight_layout()
 fig.savefig("age_vs_thalach.png", dpi=150)
 print("Saved age_vs_thalach.png")
+# ============================================================
+# Part 6: Naive analysis of chemicals_cancer.csv
+# ============================================================
+print("\n" + "=" * 60)
+print("Part 6: chemicals vs malignancy (naive)")
+print("=" * 60)
+
+chem = pd.read_csv("chemicals_cancer.csv")
+print(f"Shape: {chem.shape}")
+print(chem.describe())
+
+# Correlation of each chemical with malignancy
+for col in ["benzene", "cadmium"]:
+    rho, p = stats.spearmanr(chem[col], chem["malignancy"])
+    print(f"  {col:8s} vs malignancy: Spearman rho = {rho:+.4f}, p = {p:.3g}")
+
+# Also correlation with pollution_index and age (possible confounders)
+print("\nCorrelations with possible confounders:")
+for col in ["benzene", "cadmium"]:
+    for conf in ["pollution_index", "age"]:
+        rho, p = stats.spearmanr(chem[col], chem[conf])
+        print(f"  {col:8s} vs {conf:15s}: rho = {rho:+.4f}, p = {p:.3g}")
+# ============================================================
+# Part 7: Account for the confounder (pollution_index)
+# ============================================================
+print("\n" + "=" * 60)
+print("Part 7: control for pollution_index")
+print("=" * 60)
+
+# Restrict to patients with similar pollution_index (40-60)
+mask = (chem["pollution_index"] > 40) & (chem["pollution_index"] < 60)
+subset = chem[mask]
+print(f"Subset: {subset.shape[0]} patients with 40 < pollution_index < 60")
+print(f"pollution_index range in subset: "
+      f"{subset['pollution_index'].min():.1f} – {subset['pollution_index'].max():.1f}")
+
+print("\nCorrelations within the subset:")
+for col in ["benzene", "cadmium"]:
+    rho, p = stats.spearmanr(subset[col], subset["malignancy"])
+    print(f"  {col:8s} vs malignancy: rho = {rho:+.4f}, p = {p:.3g}")
+
+# For comparison: same chemicals vs pollution_index in subset
+print("\nCheck: are chemicals still correlated with pollution_index in subset?")
+for col in ["benzene", "cadmium"]:
+    rho, p = stats.spearmanr(subset[col], subset["pollution_index"])
+    print(f"  {col:8s} vs pollution_index: rho = {rho:+.4f}, p = {p:.3g}")
