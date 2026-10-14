@@ -119,3 +119,31 @@ print("\nCheck: are chemicals still correlated with pollution_index in subset?")
 for col in ["benzene", "cadmium"]:
     rho, p = stats.spearmanr(subset[col], subset["pollution_index"])
     print(f"  {col:8s} vs pollution_index: rho = {rho:+.4f}, p = {p:.3g}")
+# ============================================================
+# Bonus: how unpredictable is a categorical column?
+# ============================================================
+print("\n" + "=" * 60)
+print("Bonus: entropy of categorical columns")
+print("=" * 60)
+
+def shannon_entropy(series):
+    """Shannon entropy (base 2) of a categorical series."""
+    p = series.value_counts(normalize=True)
+    return -np.sum(p * np.log2(p))
+
+def normalized_entropy(series):
+    """Entropy normalized by log2(k), so 1.0 = maximally balanced."""
+    p = series.value_counts(normalize=True)
+    k = len(p)
+    H = -np.sum(p * np.log2(p))
+    return H / np.log2(k) if k > 1 else 0.0
+
+for col in ["target", "sex", "cp", "thal"]:
+    p = df[col].value_counts(normalize=True)
+    H = shannon_entropy(df[col])
+    H_norm = normalized_entropy(df[col])
+    print(f"\n{col}:")
+    print(f"  proportions: {dict(p.round(3))}")
+    print(f"  Shannon entropy H = {H:.4f} bits")
+    print(f"  normalized H / log2(k) = {H_norm:.4f}  "
+          f"(1.0 = perfectly balanced)")
