@@ -19,7 +19,7 @@ Ran `pytest -v` — **3 tests passed**:
 ### Speed comparison (`speed.py`)
 
 | Version             | Time (s) |
-|---------------------|----------|
+
 | Pure-Python loop    | 2.7031   |
 | NumPy vectorised    | 0.0003   |
 | **Speed-up**        | **8944.6×** |
@@ -98,7 +98,7 @@ equivalence point.
 **2A: easy convex function** `f(x) = (x−3)² + 1`, from `x0 = 0`:
 
 | Method | x |
-|---|---|
+
 | Gradient descent | 3.000000 |
 | Newton | 3.000000 |
 | SLSQP | 3.000000 |
@@ -110,7 +110,7 @@ All three reach **x ≈ 3**. This easy case hides the differences between method
 `g′(x) = 0` has three stationary points:
 
 | x | g″(x) | Type |
-|---|---|---|
+
 | −1.3008 | +14.31 | minimum |
 | +0.1699 | −5.65 | **maximum** |
 | +1.1309 | +9.35 | minimum |
@@ -118,7 +118,7 @@ All three reach **x ≈ 3**. This easy case hides the differences between method
 **From `x0 = 0`:**
 
 | Method | x | g(x) | Notes |
-|---|---|---|---|
+
 | Gradient descent | −1.300839 | 1.4861 | local minimum |
 | Newton | 0.169938 | 5.0841 | **maximum** (g″ < 0) |
 | SLSQP | −1.300857 | 1.4861 | local minimum |
@@ -126,7 +126,7 @@ All three reach **x ≈ 3**. This easy case hides the differences between method
 **From `x0 = 2`:**
 
 | Method | x | g(x) | Notes |
-|---|---|---|---|
+
 | Gradient descent | 1.130901 | 3.9298 | local minimum |
 | Newton | 1.130901 | 3.9298 | local minimum |
 | SLSQP | −1.300639 | 1.4861 | **global** minimum |
@@ -193,3 +193,124 @@ convex problems all methods agree, but on real (noisy, multi-minimum) chemistry
 problems the starting point, the algorithm, and the curvature check all matter.
 Fitting, equilibrium, and titration all reduce to "minimise an error" or
 "solve f(x) = 0", which `scipy.optimize` handles in a few lines.
+---
+
+## PW3: Data, Distributions, Testing, and Causation
+
+**What I built:**
+A complete statistical analysis of two datasets: the UCI Cleveland heart-disease
+dataset (303 patients) and a synthetic chemical-exposure dataset (1000 patients).
+I characterised distributions, tested normality, compared two groups, measured
+correlation, and confronted correlation with causation.
+
+### Session 1 — Characterising the data
+
+**Part 1 — Load:**
+`heart.csv` has 303 rows × 14 columns. The four continuous variables are `age`,
+`chol`, `trestbps`, `thalach`.
+
+**Part 2 — Distributions:**
+The distributions of all four variables are roughly bell-shaped but with
+noticeable deviations from normality (skew, outliers).
+
+**Part 3 — Normality verdicts (Shapiro-Wilk, p < 0.05 = not normal):**
+
+| Variable | W | p | Verdict |
+
+| age | 0.9865 | 0.0061 | **NOT normal** |
+| chol | 0.9473 | 5.9e-09 | **NOT normal** |
+| trestbps | 0.9665 | 1.8e-06 | **NOT normal** |
+| thalach | 0.9765 | 7.0e-05 | **NOT normal** |
+
+**Reasoning:** I used both a graphical check (histograms + Q-Q plots) and a
+numerical test (Shapiro-Wilk). The Q-Q plots deviate from the diagonal at the
+tails, and Shapiro-Wilk gives p < 0.05 for all four variables. So none of the
+continuous variables should be treated as normal.
+
+### Session 2 — Drawing conclusions
+
+**Part 4 — Do heart-disease patients reach a different max heart rate?**
+
+Because `thalach` is NOT normal, I used the **Mann-Whitney U test**
+(non-parametric) instead of a t-test.
+
+- Healthy: mean thalach ≈ 158 bpm
+- Disease: mean thalach ≈ 139 bpm
+- **Mann-Whitney U = 16989.5, p = 1.86e-13**
+
+**Conclusion:** the two groups differ **very significantly** (p ≈ 10⁻¹³).
+Disease patients reach a **lower** max heart rate. The 95 % CI error bars
+(`thalach_comparison.png`) do not overlap, agreeing with the test.
+
+**Part 5 — Do age and thalach move together?**
+
+Because neither is normal, I used **Spearman** correlation (not Pearson).
+
+- **Spearman rho = −0.392, p = 1.5e-12**
+
+**Conclusion:** there is a **moderate, negative, highly significant**
+correlation — older patients reach a lower max heart rate. This matches the
+known physiological fact that maximum heart rate decreases with age.
+
+### Chemicals and cancer: correlation ≠ causation
+
+**Part 6 — Naive analysis:**
+
+| Chemical | Spearman rho vs malignancy | p |
+
+| benzene | +0.377 | 5e-35 |
+| **cadmium** | **+0.885** | ~0 |
+
+Naive conclusion: **cadmium** looks far more strongly associated with
+malignancy — taken at face value, it appears to be the cause.
+
+**Part 7 — Account for the confounder:**
+
+The dataset contains `pollution_index`, which is **almost perfectly correlated
+with cadmium** (Spearman rho = +0.982) but **not with benzene** (rho = +0.054).
+
+I restricted the data to patients with similar `pollution_index`
+(40 < pollution_index < 60, n = 199) and recomputed the correlations:
+
+| Chemical | rho vs malignancy (all) | rho vs malignancy (subset) |
+
+| benzene | +0.377 | **+0.709** (grew!) |
+| cadmium | +0.885 | **+0.297** (collapsed!) |
+
+**The reveal:**
+
+- **Cadmium is NOT the cause.** Its apparent effect was a disguised effect of
+  `pollution_index`. Once we remove variation in pollution, cadmium's
+  correlation with malignancy drops from +0.885 to +0.297.
+- **Benzene IS the real cause.** Its correlation with malignancy actually
+  **grows** (from +0.377 to +0.709) once pollution noise is removed — because
+  in the full data the pollution confounder was masking its effect.
+
+**How I know:** the confounder test is the standard way to distinguish
+correlation from causation. If the association of A with Y **survives**
+(or strengthens) after controlling for Z, A is likely a genuine cause. If it
+**collapses**, A was only a marker of Z.
+
+### Bonus — Entropy of categorical columns
+
+Shannon entropy H measures how hard a category is to guess:
+
+| Column | Categories | H (bits) | H / log₂(k) |
+
+| target | 2 | 0.995 | **0.995** (almost balanced) |
+| sex | 2 | 0.905 | 0.905 |
+| cp | 4 | 1.737 | 0.869 |
+| thal | 3 | 1.246 | 0.786 |
+
+`target` is almost perfectly balanced (46 %/54 %), so a naive classifier has
+~54 % accuracy — a useful model must beat that. `thal` is the most lopsided,
+with a majority class of 55 %.
+
+### Conclusion
+
+Statistical methods must be chosen to match the data: because none of the
+continuous variables is normal, non-parametric methods (Mann-Whitney, Spearman)
+were the right choice over t-test and Pearson. And the chemical-mystery
+analysis is a textbook demonstration that **correlation does not imply
+causation** — cadmium looked like the cause, but controlling for
+`pollution_index` showed that benzene is the real driver.
