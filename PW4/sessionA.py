@@ -365,3 +365,43 @@ for ax in axes:
 fig.tight_layout()
 fig.savefig("feature_importances.png", dpi=150)
 print("\nSaved feature_importances.png")
+# ============================================================
+# Bonus: Let physics choose the features
+# ============================================================
+print("\n" + "=" * 60)
+print("Bonus: Physics-based features (log(age) + w/b ratio)")
+print("=" * 60)
+
+# Create a copy of the data
+X_phys = X.copy()
+X_phys["log_age"] = np.log(X_phys["age"])
+X_phys["w_b_ratio"] = X_phys["water"] / (X_phys["cement"] + X_phys["slag"] + X_phys["ash"] + 1e-9)
+
+# Drop original age and water
+X_phys = X_phys.drop(columns=["age", "water"])
+
+print(f"Number of features: {X_phys.shape[1]} (was 8)")
+print(f"New features: {list(X_phys.columns)}")
+
+# Split
+Xp_train, Xp_test, yp_train, yp_test = train_test_split(
+    X_phys, y, test_size=0.2, random_state=42
+)
+
+# Fit linear regression
+lr_phys = LinearRegression()
+lr_phys.fit(Xp_train, yp_train)
+
+# Evaluate
+yp_pred = lr_phys.predict(Xp_test)
+test_r2_phys = r2_score(yp_test, yp_pred)
+test_rmse_phys = np.sqrt(mean_squared_error(yp_test, yp_pred))
+
+print(f"\nLinear Regression with physics features:")
+print(f"  Test RMSE: {test_rmse_phys:.4f} MPa")
+print(f"  Test R²:   {test_r2_phys:.4f}")
+
+print("\nComparison with polynomial table:")
+print(f"  Linear (8 features):       Test R² = 0.5802")
+print(f"  Physics (8 features):      Test R² = {test_r2_phys:.4f}")
+print(f"  Polynomial degree=3 (164): Test R² = 0.8813")
