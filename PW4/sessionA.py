@@ -174,3 +174,194 @@ for degree in [1, 2, 3, 4]:
 print(f"\n{'degree':<8} {'p':>6} {'train_rmse':>12} {'test_rmse':>10} {'train_r2':>10} {'train_r2_adj':>14} {'test_r2':>10}")
 for r in results:
     print(f"{r['degree']:<8} {r['p']:>6} {r['train_rmse']:>12.4f} {r['test_rmse']:>10.4f} {r['train_r2']:>10.4f} {r['train_r2_adj']:>14.4f} {r['test_r2']:>10.4f}")
+# ============================================================
+# A6: Classification (KNN and Decision Tree)
+# ============================================================
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier, export_text
+
+print("\n" + "=" * 60)
+print("A6: Classification (KNN and Decision Tree)")
+print("=" * 60)
+
+# 1. Create classification target
+y_class = (df["strength"] >= 40).astype(int)
+print(f"Class proportions:\n{y_class.value_counts(normalize=True)}")
+
+# 2. Split with stratify
+Xc_train, Xc_test, c_train, c_test = train_test_split(
+    X, y_class, test_size=0.2, random_state=42, stratify=y_class
+)
+print(f"\nClassification split: Train {Xc_train.shape[0]}, Test {Xc_test.shape[0]}")
+
+# --- KNN Sweep ---
+print("\n--- KNN Sweep ---")
+k_values = [1, 3, 5, 7, 15, 25, 51, 101]
+knn_train_accs = []
+knn_test_accs = []
+
+print(f"{'K':>4} {'Train Acc':>10} {'Test Acc':>10}")
+for k in k_values:
+    knn = make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=k))
+    knn.fit(Xc_train, c_train)
+    
+    train_acc = knn.score(Xc_train, c_train)
+    test_acc = knn.score(Xc_test, c_test)
+    
+    knn_train_accs.append(train_acc)
+    knn_test_accs.append(test_acc)
+    print(f"{k:>4} {train_acc:>10.4f} {test_acc:>10.4f}")
+
+# Plot KNN sweep
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(k_values, knn_train_accs, marker='o', label='Train')
+ax.plot(k_values, knn_test_accs, marker='s', label='Test')
+ax.set_xscale("log")
+ax.set_xlabel("K (log scale)")
+ax.set_ylabel("Accuracy")
+ax.set_title("KNN Accuracy vs K")
+ax.legend()
+ax.grid(True, alpha=0.3)
+fig.tight_layout()
+fig.savefig("knn_sweep.png", dpi=150)
+
+# --- Decision Tree Sweep ---
+print("\n--- Decision Tree Sweep ---")
+depths = [1, 2, 3, 4, 5, 6, 8, None]
+tree_train_accs = []
+tree_test_accs = []
+tree_leaves = []
+
+print(f"{'Depth':>6} {'Leaves':>8} {'Train Acc':>10} {'Test Acc':>10}")
+for depth in depths:
+    tree = DecisionTreeClassifier(criterion="entropy", max_depth=depth, random_state=0)
+    tree.fit(Xc_train, c_train)
+    
+    train_acc = tree.score(Xc_train, c_train)
+    test_acc = tree.score(Xc_test, c_test)
+    leaves = tree.get_n_leaves()
+    
+    tree_train_accs.append(train_acc)
+    tree_test_accs.append(test_acc)
+    tree_leaves.append(leaves)
+    
+    depth_str = str(depth) if depth is not None else "None"
+    print(f"{depth_str:>6} {leaves:>8} {train_acc:>10.4f} {test_acc:>10.4f}")
+
+# Plot Tree sweep (convert None to max depth + 1 for x-axis)
+plot_depths = [d if d is not None else 10 for d in depths]
+fig, ax = plt.subplots(figsize=(8, 5))
+ax.plot(plot_depths, tree_train_accs, marker='o', label='Train')
+ax.plot(plot_depths, tree_test_accs, marker='s', label='Test')
+ax.set_xlabel("Max Depth (10 = unlimited)")
+ax.set_ylabel("Accuracy")
+ax.set_title("Decision Tree Accuracy vs Depth")
+ax.legend()
+ax.grid(True, alpha=0.3)
+fig.tight_layout()
+fig.savefig("tree_sweep.png", dpi=150)
+
+# --- Print top 2 levels of a chosen tree (e.g., depth=3) ---
+print("\n--- Decision Tree (max_depth=3) top levels ---")
+best_tree = DecisionTreeClassifier(criterion="entropy", max_depth=3, random_state=0)
+best_tree.fit(Xc_train, c_train)
+print(export_text(best_tree, feature_names=list(X.columns), max_depth=2))
+# ============================================================
+# A7: The metrics that matter
+# ============================================================
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+
+print("\n" + "=" * 60)
+print("A7: Metrics and thresholds")
+print("=" * 60)
+
+# Use KNN with K=7
+knn_best = make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=7))
+knn_best.fit(Xc_train, c_train)
+c_pred = knn_best.predict(Xc_test)
+proba = knn_best.predict_proba(Xc_test)[:, 1]
+
+# Confusion Matrix
+tn, fp, fn, tp = confusion_matrix(c_test, c_pred).ravel()
+print(f"KNN (K=7):")
+print(f"  TP={tp}, FP={fp}, FN={fn}, TN={tn}")
+print(f"  Accuracy:  {accuracy_score(c_test, c_pred):.4f}")
+print(f"  Precision: {precision_score(c_test, c_pred):.4f}")
+print(f"  Recall:    {recall_score(c_test, c_pred):.4f}")
+print(f"  F1:        {f1_score(c_test, c_pred):.4f}")
+
+# Thresholds
+print("\nThresholds for KNN (K=7):")
+print(f"{'Threshold':>9} {'TP':>3} {'FP':>3} {'FN':>3} {'TN':>3} {'Precision':>10} {'Recall':>8} {'F1':>6}")
+results_metrics = []
+for t in [0.3, 0.5, 0.7, 0.9]:
+    t_pred = (proba >= t).astype(int)
+    tn_t, fp_t, fn_t, tp_t = confusion_matrix(c_test, t_pred).ravel()
+    p = precision_score(c_test, t_pred, zero_division=0)
+    r = recall_score(c_test, t_pred, zero_division=0)
+    f = f1_score(c_test, t_pred, zero_division=0)
+    print(f"{t:>9.1f} {tp_t:>3} {fp_t:>3} {fn_t:>3} {tn_t:>3} {p:>10.4f} {r:>8.4f} {f:>6.4f}")
+    results_metrics.append({"model": "KNN_K7", "threshold": t, "TP": tp_t, "FP": fp_t, "FN": fn_t, "TN": tn_t, "precision": p, "recall": r, "f1": f})
+
+# Save metrics for B7
+os.makedirs("results", exist_ok=True)
+metrics_df = pd.DataFrame(results_metrics)
+metrics_df.to_csv("results/A_metrics.csv", index=False)
+print("\nSaved results/A_metrics.csv")
+# ============================================================
+# A8: Which ingredients matter? Feature importance
+# ============================================================
+from sklearn.inspection import permutation_importance
+
+print("\n" + "=" * 60)
+print("A8: Feature Importance")
+print("=" * 60)
+
+# 1. Raw coefficients (from linear regression A4)
+raw_coefs = lr.coef_
+
+# 2. Standardised coefficients
+scaler_lr = make_pipeline(StandardScaler(), LinearRegression())
+scaler_lr.fit(X_train, y_train)
+std_coefs = scaler_lr[-1].coef_
+
+# 3. Tree importances (from depth=3 or None)
+best_tree_imp = DecisionTreeClassifier(criterion="entropy", max_depth=3, random_state=0)
+best_tree_imp.fit(Xc_train, c_train)
+tree_imps = best_tree_imp.feature_importances_
+
+# 4. Permutation importance (KNN K=7)
+knn_best = make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=7))
+knn_best.fit(Xc_train, c_train)
+perm_imp = permutation_importance(knn_best, Xc_test, c_test, scoring="f1", n_repeats=20, random_state=0)
+
+# Compile table
+imp_df = pd.DataFrame({
+    "feature": X.columns,
+    "raw_coef": raw_coefs,
+    "std_coef": std_coefs,
+    "tree_importance": tree_imps,
+    "knn_perm_importance": perm_imp.importances_mean,
+})
+
+print(imp_df.to_string(index=False))
+
+# Plot (3 bar charts side by side)
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+axes[0].barh(imp_df["feature"], imp_df["std_coef"], color="C0")
+axes[0].set_title("Standardized Coefficients")
+axes[0].axvline(0, color="black", lw=0.8)
+
+axes[1].barh(imp_df["feature"], imp_df["tree_importance"], color="C1")
+axes[1].set_title("Tree Feature Importance")
+
+axes[2].barh(imp_df["feature"], imp_df["knn_perm_importance"], color="C2")
+axes[2].set_title("KNN Permutation Importance")
+
+for ax in axes:
+    ax.grid(True, alpha=0.3)
+
+fig.tight_layout()
+fig.savefig("feature_importances.png", dpi=150)
+print("\nSaved feature_importances.png")
