@@ -314,3 +314,98 @@ were the right choice over t-test and Pearson. And the chemical-mystery
 analysis is a textbook demonstration that **correlation does not imply
 causation** — cadmium looked like the cause, but controlling for
 `pollution_index` showed that benzene is the real driver.
+
+## PW4 - Session A: Supervised Learning (Concrete Strength)
+
+**What I built:**
+A full supervised-learning workflow on the UCI Concrete Compressive Strength dataset (1030 tests, 8 inputs, 1 output). I performed cleaning, linear regression, polynomial regression, classification (KNN & Decision Tree), evaluated metrics, and analysed feature importance.
+
+### A1: Variables and Units
+| Variable | Unit |
+|---|---|
+| cement | kg/m³ |
+| slag | kg/m³ |
+| ash | kg/m³ |
+| water | kg/m³ |
+| superplastic | kg/m³ |
+| coarse_agg | kg/m³ |
+| fine_agg | kg/m³ |
+| age | day |
+| strength (target) | MPa |
+
+### A2: Cleaning decisions
+- Found **25 duplicate rows** (1030 → 1005). 
+- **Why duplicates are a problem:** if identical rows end up in both train and test sets, the model essentially "memorises" the test data and gives artificially high scores.
+- **0 missing values** found.
+- `coarse_agg` (up to 1145) and `fine_agg` (up to 992) are on much larger numerical scales than `superplastic` (up to 32), which is why scaling is needed later for KNN.
+
+### A3: Split
+- Train: 804 rows, Test: 201 rows (80/20 split, `random_state=42`).
+
+### A4: Linear Regression
+**Fitted equation (raw units):**
+`strength = -23.39 + 0.117*cement + 0.098*slag + 0.085*ash - 0.131*water + 0.332*superplastic + 0.016*coarse_agg + 0.021*fine_agg + 0.111*age`
+
+**Metrics:**
+| Metric | Value |
+|---|---|
+| Train RMSE | 10.00 MPa |
+| Test RMSE | 11.19 MPa |
+| Test MAE | 8.90 MPa |
+| Train R² | 0.610 |
+| Train R² (adj) | 0.606 |
+| Test R² | **0.580** |
+
+**Residuals:** The residuals vs `age` plot shows a clear nonlinear pattern (overpredicting at small ages, underpredicting at large ages). This indicates the model is **misspecified** — strength grows nonlinearly (logarithmically) with age.
+
+### A5: Polynomial Regression
+| Degree | Features (p) | Train RMSE | Test RMSE | Train R² | Train R² (adj) | Test R² |
+|---|---|---|---|---|---|---|
+| 1 | 8 | 10.00 | 11.19 | 0.610 | 0.606 | 0.580 |
+| 2 | 44 | 6.99 | 8.31 | 0.810 | 0.798 | 0.769 |
+| **3** | **164** | **4.40** | **5.95** | **0.925** | **0.905** | **0.881** |
+| 4 | 494 | 2.33 | 39.41 | 0.979 | 0.945 | **-4.206** |
+
+**Choice:** I choose **Degree 3** (best test R² = 0.881).
+**Degree 4 overfitting:** The number of features explodes to 494, which is more than half of the training rows (804). The model memorises the train data (R²=0.979) but catastrophically fails on the test set (R² = -4.2). Adjusted R² on the train set (0.945) still looks fine — so adjusted R² **cannot** protect you from overfitting on unseen data.
+
+### A6: Classification (KNN & Tree)
+Class target: `strength >= 40 MPa` (1 = yes, 0 = no). Proportions: 64% (0) / 36% (1).
+
+**KNN Sweep:** I chose **K = 7** because it gives the highest test accuracy (0.836). K=1 overfits (train 0.998), and large K underfits.
+
+**Decision Tree Sweep:**
+- Unlimited tree (`max_depth=None`) gives the best test accuracy (0.881).
+- However, it has **80 leaves** and is impossible to read.
+- I chose **max_depth=3** (test accuracy 0.796) for interpretability.
+- **Root question:** `age <= 42.00`. This makes physical sense: curing time is the most critical factor for concrete strength.
+
+### A7: Metrics & Thresholds
+**KNN (K=7) metrics at threshold 0.5:** TP=54, FP=15, FN=18, TN=114. Accuracy=0.836, Precision=0.783, Recall=0.750, F1=0.766.
+
+| Threshold | TP | FP | FN | TN | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|---|
+| 0.3 | 61 | 23 | 11 | 106 | 0.726 | 0.847 | 0.782 |
+| 0.5 | 54 | 15 | 18 | 114 | 0.783 | 0.750 | 0.766 |
+| 0.7 | 39 | 11 | 33 | 118 | 0.780 | 0.542 | 0.639 |
+| 0.9 | 18 | 1 | 54 | 128 | 0.947 | 0.250 | 0.396 |
+
+**Safety & FP/FN:** On a construction site, **False Positive (FP)** is the most dangerous mistake (predicting concrete is strong when it is actually weak). **Precision** controls FP. To be safer, we should raise the threshold to **0.7** (fewer FPs), but we pay for it with lower Recall (we reject good batches).
+
+### A8: Feature Importance
+| Feature | Raw Coef | Standardised Coef | Tree Importance | KNN Perm. Importance |
+|---|---|---|---|---|
+| cement | 0.117 | **12.12** | 0.285 | 0.165 |
+| age | 0.111 | 6.89 | **0.320** | **0.176** |
+| slag | 0.098 | 8.44 | 0.000 | 0.055 |
+| water | -0.131 | -2.83 | 0.046 | 0.068 |
+| superplastic | 0.332 | 1.97 | 0.241 | 0.066 |
+
+- **Raw vs standardised:** `superplastic` looks important in raw units, but after scaling, `cement` dominates.
+- **Physical interpretation:** All methods agree that **`age` and `cement`** are the most important. This matches engineering knowledge: water has a negative effect, cement and curing time have positive effects. 
+- **Does high importance mean causality?** No! (Link to PW3: correlation ≠ causation). Importance only says the model *uses* the feature, not that changing it will *cause* a change.
+
+### Bonus: Physics-based features
+By replacing `age` with `log(age)` and `water` with the water-to-binder ratio (`w/b`), I increased the Test R² from **0.580 to 0.806** without adding any features (still 8). This is nearly as good as the polynomial model with 164 features (0.881), proving that **domain knowledge beats brute-force complexity**.
+
+*(Session B will be added next.)*
