@@ -116,3 +116,61 @@ ax.grid(True, alpha=0.3)
 fig.tight_layout()
 fig.savefig("residuals_vs_age.png", dpi=150)
 print("\nSaved residuals_vs_age.png")
+# ============================================================
+# A5: Polynomial Regression
+# ============================================================
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import mean_squared_error, r2_score
+import numpy as np
+
+print("\n" + "=" * 60)
+print("A5: Polynomial Regression")
+print("=" * 60)
+
+# Table for results
+results = []
+
+for degree in [1, 2, 3, 4]:
+    # Create pipeline
+    poly = make_pipeline(
+        PolynomialFeatures(degree=degree, include_bias=False),
+        StandardScaler(),
+        LinearRegression()
+    )
+    
+    # Fit
+    poly.fit(X_train, y_train)
+    
+    # Number of features after expansion
+    p = poly[0].n_output_features_
+    
+    # Predictions
+    y_train_pred = poly.predict(X_train)
+    y_test_pred = poly.predict(X_test)
+    
+    # Metrics
+    train_rmse = np.sqrt(mean_squared_error(y_train, y_train_pred))
+    test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+    
+    train_r2 = r2_score(y_train, y_train_pred)
+    test_r2 = r2_score(y_test, y_test_pred)
+    
+    # Adjusted R2 (on train)
+    n = X_train.shape[0]
+    train_r2_adj = 1 - (1 - train_r2) * (n - 1) / (n - p - 1)
+    
+    results.append({
+        "degree": degree,
+        "p": p,
+        "train_rmse": train_rmse,
+        "test_rmse": test_rmse,
+        "train_r2": train_r2,
+        "train_r2_adj": train_r2_adj,
+        "test_r2": test_r2,
+    })
+
+# Print table
+print(f"\n{'degree':<8} {'p':>6} {'train_rmse':>12} {'test_rmse':>10} {'train_r2':>10} {'train_r2_adj':>14} {'test_r2':>10}")
+for r in results:
+    print(f"{r['degree']:<8} {r['p']:>6} {r['train_rmse']:>12.4f} {r['test_rmse']:>10.4f} {r['train_r2']:>10.4f} {r['train_r2_adj']:>14.4f} {r['test_r2']:>10.4f}")
