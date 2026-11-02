@@ -283,7 +283,7 @@ proba = knn_best.predict_proba(Xc_test)[:, 1]
 
 # Confusion Matrix
 tn, fp, fn, tp = confusion_matrix(c_test, c_pred).ravel()
-print(f"KNN (K=7):")
+print(f"KNN (K=5):")
 print(f"  TP={tp}, FP={fp}, FN={fn}, TN={tn}")
 print(f"  Accuracy:  {accuracy_score(c_test, c_pred):.4f}")
 print(f"  Precision: {precision_score(c_test, c_pred):.4f}")
