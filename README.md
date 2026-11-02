@@ -396,6 +396,7 @@ Class target: `strength >= 40 MPa` (1 = yes, 0 = no). Proportions: 64% (0) / 36%
 | Feature | Raw Coef | Standardised Coef | Tree Importance | KNN Perm. Importance |
 |---|---|---|---|---|
 | cement | 0.117 | **12.12** | 0.285 | 0.165 |
+---
 | age | 0.111 | 6.89 | **0.320** | **0.176** |
 | slag | 0.098 | 8.44 | 0.000 | 0.055 |
 | water | -0.131 | -2.83 | 0.046 | 0.068 |
@@ -408,4 +409,36 @@ Class target: `strength >= 40 MPa` (1 = yes, 0 = no). Proportions: 64% (0) / 36%
 ### Bonus: Physics-based features
 By replacing `age` with `log(age)` and `water` with the water-to-binder ratio (`w/b`), I increased the Test R² from **0.580 to 0.806** without adding any features (still 8). This is nearly as good as the polynomial model with 164 features (0.881), proving that **domain knowledge beats brute-force complexity**.
 
-*(Session B will be added next.)*
+### Session B: Unsupervised Learning (Wine data)
+
+**B1: Load & describe.** The dataset has 178 wines, 13 chemical measurements. `proline` has a massive range (278–1680) compared to `alcohol` (11–15).
+
+**B2: PCA on raw data.** PC1 explains **99.8%** of the variance, but its loading is **0.9998 for `proline`**. This is an artifact: PCA only centers the data, so the variable with the largest numerical range dominates. This is not a real chemical pattern.
+
+**B3: PCA on scaled data.** After scaling, PC1 explains 36.2%, PC2 explains 19.2%. It takes 8 components to reach 90% variance. The PC1 loadings show a **phenolic axis** (`flavanoids` +0.42, `total_phenols` +0.39 vs `nonflavanoid_phenols` −0.30). PC2 is a **color/alcohol axis** (`color_intensity` +0.53, `alcohol` +0.48).
+
+**B4: K-Means.** `n_init=10` stabilizes the inertia (values vary only from 1277.9 to 1282.5 across different seeds). The elbow method clearly shows **k=3** (inertia drops sharply from 2314 → 1659 → 1278, then flattens).
+
+**B5: Cluster interpretation.** The 3 clusters (sizes 65, 51, 62) differ mostly in `proline`, `magnesium`, `color_intensity`, and `alcohol`. Cluster 0 is light/low-alcohol, Cluster 1 is dark/high-color, Cluster 2 is full-bodied/high-proline.
+
+**B6: The reveal.** 
+- Scaled K-Means agreement: **96.63%**
+- Raw (unscaled) K-Means agreement: 70.22%
+- PCA 2D K-Means agreement: 96.63%
+
+The scaled K-Means aligns almost perfectly with the 3 true cultivars. Without scaling, `proline` dominates and ruins the clustering (70%). 
+
+**B7: Snakemake pipeline.**
+The `Snakefile` contains 4 rules: `all`, `fetch`, `session_a`, `session_b`. 
+- `snakemake -n` (dry run) shows the plan without executing.
+- Running from scratch (`rm -rf data results; snakemake --cores 1`) executes fetch → session_a → session_b.
+- Running again reports `Nothing to be done` (all outputs are up-to-date).
+- Editing a hyperparameter in `sessionA.py` triggers **only `session_a`** to rerun. `fetch` does not rerun because its input script (`fetch_concrete.py`) and its output (`data/concrete.csv`) are unchanged. `session_b` does not rerun because `sessionB.py` hasn't changed.
+- **One command to reproduce everything:** `snakemake --cores 1`
+
+**Bonus: Supervised vs Unsupervised.**
+- KNN (13 features) test accuracy: **93.33%**
+- KNN (2 PCs) test accuracy: **93.33%**
+- K-Means (unsupervised) agreement: **96.63%**
+
+The unsupervised K-Means actually outperformed the supervised KNN. The comparison is not completely fair: KNN is evaluated on a smaller unseen test split, while K-Means agreement is measured on all 178 points. Also, KNN struggles with the curse of dimensionality, whereas K-Means finds global cluster centers that separate the 3 chemical clouds perfectly.

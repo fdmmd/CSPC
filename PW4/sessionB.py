@@ -233,3 +233,38 @@ agreement_df = pd.DataFrame([
 ])
 agreement_df.to_csv("results/B_agreement.csv", index=False)
 print("\nSaved results/B_agreement.csv")
+# ============================================================
+# Bonus: What do labels buy you?
+# ============================================================
+print("\n" + "=" * 60)
+print("Bonus: Supervised vs Unsupervised (Wine data)")
+print("=" * 60)
+
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import accuracy_score
+
+# Split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, cultivar, test_size=0.25, random_state=42, stratify=cultivar
+)
+print(f"Train: {X_train.shape[0]} rows, Test: {X_test.shape[0]} rows")
+
+# 1. KNN on all 13 features (scaled)
+knn_full = make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=5))
+knn_full.fit(X_train, y_train)
+acc_full = knn_full.score(X_test, y_test)
+print(f"\nKNN (all 13 features, scaled): Test Accuracy = {acc_full:.4f} ({acc_full:.2%})")
+
+# 2. KNN on 2 PCs (scaled + PCA)
+knn_pca = make_pipeline(StandardScaler(), PCA(n_components=2), KNeighborsClassifier(n_neighbors=5))
+knn_pca.fit(X_train, y_train)
+acc_pca = knn_pca.score(X_test, y_test)
+print(f"KNN (2 PCs, scaled):           Test Accuracy = {acc_pca:.4f} ({acc_pca:.2%})")
+
+# 3. Unsupervised agreement (from B6)
+print(f"\nUnsupervised (K-Means agreement): {agreement:.4f} ({agreement:.2%})")
+
+print("\nWhy is this comparison not completely fair?")
+print("(Answer in README)")
