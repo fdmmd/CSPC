@@ -442,3 +442,127 @@ The `Snakefile` contains 4 rules: `all`, `fetch`, `session_a`, `session_b`.
 - K-Means (unsupervised) agreement: **96.63%**
 
 The unsupervised K-Means actually outperformed the supervised KNN. The comparison is not completely fair: KNN is evaluated on a smaller unseen test split, while K-Means agreement is measured on all 178 points. Also, KNN struggles with the curse of dimensionality, whereas K-Means finds global cluster centers that separate the 3 chemical clouds perfectly.
+
+## PW5 — Signal Processing: Where Was the Earthquake, and How Strong?
+
+**What I built:**
+A full seismological analysis pipeline on two 3-channel broadband records (Z, N, E, 100 Hz, 300 s). I inspected raw waveforms, computed spectra, manually band-passed in the frequency domain, built envelopes, picked P- and S-arrival times, computed the hypocentral distance and origin time, plotted a spectrogram, estimated PGV and magnitude, and wrapped everything into a reproducible Snakemake pipeline. Region velocities: **v_P = 6.2 km/s**, **v_S = 3.6 km/s**.
+
+### 1. Look at the record
+- fs = 100.000 Hz, N = 30000 samples, duration = 299.99 s.
+- Three channels Z (vertical), N (north–south), E (east–west) in mm/s.
+- The record contains **two phases**: a weak first shaking (P) and a strong later shaking (S + surface waves).
+- The first weak shaking is **clearest on Z** — P is longitudinal and arrives almost vertically at the surface.
+- The later strong shaking is **largest on N and E** — S is transverse; surface waves also move the ground horizontally.
+- The first 60 s are **not perfectly quiet**: background noise ~1e-6..1e-5 m/s (microseisms + electronics).
+- **Why:** P is longitudinal (near-vertical at the surface), S is transverse (near-horizontal). "Quiet before the earthquake" means "at the noise floor", not "exactly zero".
+
+### 2. The spectrum
+- `fft` returns one complex number per sample; `fftfreq` gives the **frequency in Hz** of each element. Without it, the array index means nothing physically.
+- The spectrum is **mirrored around 0 Hz** because the input is real: `X(−f) = conj(X(f))`, so |X| is symmetric. Negative frequencies are a mathematical mirror and carry no new information.
+- Quiet-part peak: **~0.15 Hz** — this is the **microseism** (ocean waves), recorded by every station on Earth.
+- The whole-record amplitude maximum is also at ~0.15 Hz (the earthquake adds most energy at the low end).
+- S/N ratio is highest in 0.05–0.5 Hz, but there the earthquake is mixed with microseisms and drift. The useful band for phase picking is **0.5–10 Hz**.
+
+**Energy per band (spectrum_check.py):**
+
+| band | EQ energy | quiet energy | ratio |
+|---|---|---|---|
+| 0.05–0.5 Hz | 3.65e-07 | 1.31e-13 | 2.79e+06 |
+| 0.5–2 Hz | 1.64e-07 | 4.37e-13 | 3.74e+05 |
+| 2–5 Hz | 8.61e-08 | 8.74e-13 | 9.85e+04 |
+| 5–10 Hz | 2.47e-08 | 1.46e-12 | 1.69e+04 |
+| 10–20 Hz | 8.09e-09 | 2.91e-12 | 2.78e+03 |
+
+### 3. Inverse transform and manual band-pass
+- `np.allclose(ifft(fft(Z)).real, Z)` → **True**. Filtering in the frequency domain relies on the FFT/IFFT pair being invertible: go to frequencies, zero out the band, come back to time — that is exactly a linear filter.
+- Band-pass **a = 0.5 Hz, b = 10 Hz** applied to Z, N, E.
+  - Below 0.5 Hz: microseisms and drift → would mask the start of P.
+  - Above 10 Hz: network and electronic noise.
+  - Both cut-offs come from the spectra in Section 2.
+- `Z − Zfilt` is a smooth, low-frequency signal — exactly the microseisms and drift that were removed. In the first 60 s it is pure noise (no earthquake yet); later it also contains slow surface waves.
+
+### 4. The envelope
+- Moving average of |x| with window w samples. Horizontal motion = sqrt(N² + E²).
+- **Window 0.05 s** — envelope too rough, follows almost every peak; can't see where a phase starts.
+- **Window 0.5 s** — compromise: smooth enough, S packet and onset still visible.
+- **Window 5 s** — heavily smoothed; start of P is smeared over several seconds, arrival time impossible to pick. Long window introduces a systematic delay.
+- Max Z envelope at **109.80 s**; max horizontal envelope at **152.03 s** — horizontal max comes later, as expected (S + surface waves).
+
+### 5. Arrival times — start, not maximum
+- **t_P = 108.42 s** — first time Z envelope exceeds 5% of its max.
+- **t_S = 144.08 s** — first time (after t_P + 2 s) horizontal envelope exceeds 10% of its max.
+- **dt = t_S − t_P = 35.66 s**.
+- Horizontal envelope maximum via `find_peaks` → **t_peak = 152.03 s**, i.e. 7.95 s after t_S.
+- **Why an arrival is the start, not the maximum:** the maximum is the peak of the wave packet, which arrives *after* the onset (waves build up gradually). If we used t_peak as t_S, dt would be 43.61 s instead of 35.66 s → distance overestimated by **22%**.
+
+### 6. Distance and origin time
+**Formula:** R = dt / (1/v_S − 1/v_P), t0 = t_P − R/v_P.
+
+| Quantity | Value |
+|---|---|
+| dt | 35.66 s |
+| 1/v_S − 1/v_P | 0.116487 s/km |
+| **R** | **306.1 km** |
+| **t0** | **59.04 s** |
+
+- **Uncertainty:** t_S ± 1 s → R changes by **± 8.6 km per second** (R = 297.5 km at t_S−1 s, 314.7 km at t_S+1 s).
+- t0 < t_P ✓ — the earthquake happened ~49 s before the P wave reached the station.
+
+### 7. The spectrogram
+- `scipy.signal.spectrogram(raw Z, fs=100, nperseg=256)` → f up to 50 Hz, 133 time bins, displayed 0–10 Hz.
+- Before t_P (~108 s): almost black, only a thin low-frequency line (~0.15 Hz) — microseisms.
+- Around t_P: vertical flash at higher frequencies (1–10 Hz) — the P wave.
+- After t_S (~144 s): the whole band brightens, especially lower frequencies — S + surface waves.
+- Later (~200+ s): low frequencies dominate, high frequencies fade — surface waves.
+- **What the spectrogram adds over the single spectrum (Section 2):** the spectrum shows *which frequencies exist anywhere in the record*; the spectrogram shows *which frequencies exist at which time*. This is what distinguishes P (early, higher) from S and surface waves (later, lower).
+
+### 8. Magnitude
+**Formula:** M = (log10(PGV[cm/s]) + log10(R[km]) + 1.0) / 0.55, PGV = max of sqrt(N² + E²) over the whole raw record.
+
+| Quantity | Value |
+|---|---|
+| PGV | 1.5105 cm/s |
+| R | 306.1 km |
+| **M** | **6.66** |
+
+- **Why log10(R):** the same earthquake recorded twice as far away would have a smaller PGV. Without log10(R), M would be underestimated. Concretely: ignoring log10(R) gives M = 2.14, i.e. 4.5 units too small for R = 306 km.
+- **M+1 at the same distance:** PGV increases by 10^0.55 ≈ **3.55×** (5.359 cm/s vs 1.5105 cm/s).
+
+### 9. The whole system
+- `analyse.py` — one function `analyse(csv_file)` does Sections 3–8 and returns t_P, t_S, dt, R, t0, PGV, M. Runs unchanged on both records.
+- `report.py` reads `results/events.csv` and writes `results/report.txt` with one block per event plus a comparison.
+- Final table (`results/events.csv`):
+
+| file | t_P (s) | t_S (s) | dt (s) | R (km) | t0 (s) | PGV (cm/s) | M |
+|---|---|---|---|---|---|---|---|
+| seismogram_A.csv | 108.42 | 144.08 | 35.66 | 306.1 | 59.04 | 1.5105 | 6.66 |
+| seismogram_B.csv |  84.25 | 102.43 | 18.18 | 156.1 | 59.08 | 0.5711 | 5.36 |
+
+- **Closer: B** (156.1 km < 306.1 km). **Stronger: A** (M 6.66 > M 5.36). A is farther but stronger; B is closer but weaker.
+
+### 10. Snakemake
+`Snakefile` with three rules: `analyse` (inputs `analyse.py`, both CSVs → `results/events.csv`), `report` (inputs `report.py`, `results/events.csv` → `results/report.txt`), `all`.
+
+**(a)** `rm -rf results && snakemake --cores 1` → `analyse` runs (`reason: Missing output files`), then `report` (`reason: Input files updated by another job: results/events.csv`), then `all`. 3/3 done.
+
+**(b)** Second run without changes → **`Nothing to be done`**. Snakemake compares mtimes; nothing changed → nothing runs. Idempotent.
+
+**(c)** Changing only the text in `report.py` → `localrule report` runs (`reason: Code has changed`), `analyse` does **not** run. Only the changed step and its downstream consumers re-execute.
+
+**(d)** Changing `B_HIGH = 10.0` → `8.0` in `analyse.py` → `analyse` runs (`reason: Updated input files: analyse.py`), then `report` runs (`reason: Input files updated by another job: results/events.csv`), then `all`. Both downstream steps re-run.
+
+**Why (d) is what a pipeline should do:** Snakemake tracks **data dependencies**, not just command timestamps. Change analysis code → re-run analysis and everything depending on its output. Change only report wording → re-run only the report. Results are always consistent with the code that produced them, without the user having to remember what to re-run. The `B_HIGH` change in (d) was reverted back to **10.0** so the final results correspond to the justified 0.5–10 Hz band-pass.
+
+### Figures index
+| figure | Part |
+|---|---|
+| `step1_full.png`, `step1_zoom60.png` | 1 |
+| `step2a_index_vs_freq.png`, `step2b_loglog.png` | 2 |
+| `step3_filtered.png`, `step3_removed.png`, `step3_removed_zoom.png` | 3 |
+| `step4a_envelope_windows.png`, `step4b_envelopes_Z_H.png` | 4 |
+| `step5_arrivals.png`, `step5_arrivals_zoom.png` | 5 |
+| `step7_spectrogram.png`, `step7_spectrogram_annot.png` | 7 |
+| `analyse_seismogram_A.png`, `analyse_seismogram_B.png` | 9 |
+
+Sections 6 and 8 have no figures — they compute numbers from Sections 5 and 3.

@@ -1,0 +1,28 @@
+PW5 — Earthquake summary
+============================================================
+records analysed: 2
+
+Event seismogram_A.csv
+------------------------------------------------------------
+  P arrival      :  108.42 s
+  S arrival      :  144.08 s
+  S-P time       :   35.66 s
+  distance       :   306.1 km
+  origin time    :   59.04 s
+  PGV            :  1.5105 cm/s
+  magnitude M    :    6.66
+
+Event seismogram_B.csv
+------------------------------------------------------------
+  P arrival      :   84.25 s
+  S arrival      :  102.43 s
+  S-P time       :   18.18 s
+  distance       :   156.1 km
+  origin time    :   59.08 s
+  PGV            :  0.5711 cm/s
+  magnitude M    :    5.36
+
+Comparison
+------------------------------------------------------------
+  closer  earthquake : seismogram_B.csv (R = 156.1 km)
+  stronger earthquake: seismogram_A.csv (M = 6.66)

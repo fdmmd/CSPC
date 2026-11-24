@@ -1,0 +1,25 @@
+rule all:
+    input:
+        "results/events.csv",
+        "results/report.txt"
+
+
+rule analyse:
+    input:
+        "analyse.py",
+        "data/seismogram_A.csv",
+        "data/seismogram_B.csv"
+    output:
+        "results/events.csv"
+    shell:
+        "python analyse.py"
+
+
+rule report:
+    input:
+        "report.py",
+        "results/events.csv"
+    output:
+        "results/report.txt"
+    shell:
+        "python report.py"
