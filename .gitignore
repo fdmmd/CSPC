@@ -1,33 +1,28 @@
-cat > .gitignore <<'EOF'
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
-EOF
+
 # Snakemake
 .snakemake/
+PW5/.snakemake/
 
 # Generated figures
 figure.png
-
-# Python cache
-__pycache__/
-*.pyc
 motion.png
 trajectory.png
 equilibrium.png
 titration.png
 kinetics.png
-equilibrium.png
-titration.png
 distributions.png
 qqplots.png
-*.zip
 thalach_comparison.png
 age_vs_thalach.png
-.snakemake/
+
+# Data archives
+*.zip
+
+# PW5 generated arrays
 PW5/results/*.npz
-PW5/.snakemake/
-__pycache__/
-*.pyc
