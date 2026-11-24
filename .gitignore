@@ -27,3 +27,7 @@ qqplots.png
 thalach_comparison.png
 age_vs_thalach.png
 .snakemake/
+PW5/results/*.npz
+PW5/.snakemake/
+__pycache__/
+*.pyc
